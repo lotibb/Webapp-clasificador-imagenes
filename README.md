@@ -2,7 +2,6 @@
  Un aplicación web para clasificar imagenes de machine learning.
 
 - La aplicación web está conectada a una base de datos MySQL que maneja la información de los usuarios.
-- Las imágenes son extraídas de la una carpeta en local.
 - Las imágenes que va a clasificar cada usuario están especificadas en una carpeta declarada en el archivo de configuración.
 
 Se utiliza:
