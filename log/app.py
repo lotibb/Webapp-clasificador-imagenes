@@ -2,8 +2,9 @@ from flask import Flask, render_template, jsonify, send_from_directory, request,
 from flask_mysqldb import MySQL
 import os
 from config_image_pull import Config
+import shutil
 
-app = Flask(__name__,template_folder='template')
+app = Flask(__name__, template_folder='template')
 app.config.from_object(Config)  # Load configurations from Config
 
 # Initialize MySQL
@@ -11,7 +12,7 @@ mysql = MySQL(app)
 
 @app.route('/')
 def home():
-    return render_template('index.html')   
+    return render_template('index.html')
 
 
 @app.route('/acceso-login', methods=["GET", "POST"])
@@ -23,6 +24,7 @@ def login():
         _nmusuario = request.form['txtUsuario']
         _contraseña = request.form['txtPassword']
 
+        # Fetch user from the database
         cur = mysql.connection.cursor()
         cur.execute('SELECT * FROM usuarios WHERE nmusuario = %s AND contraseña = %s', (_nmusuario, _contraseña,))
         account = cur.fetchone()
@@ -34,118 +36,102 @@ def login():
             session['id'] = account['usuarioid']
             session['username'] = account['nmusuario']
 
-            # Get user data
-            user_data = {
-                "nombre_usuario": account["nmusuario"],
-                "atributo_clasificando": account["atributo_clasificando"],
-                "ganancias_mxn": account["ganancias_mxn"]
-            }
+            # Fetch the user's base path and folders
+            user_config = app.config['USER_DIRECTORY_CONFIG'].get(account["nmusuario"])
+            if not user_config:
+                return f"No folder configuration found for user '{account['nmusuario']}'", 404
 
-            # Fetch user-specific images
-            user_image_directory = app.config['USER_IMAGE_DIRECTORIES'].get(user_data["nombre_usuario"])
-            
-            if not user_image_directory or not os.path.exists(user_image_directory):
-                return f"No images found for user '{user_data['nombre_usuario']}'", 404
+            base_path = user_config.get("base_path")
+            folders = user_config.get("folders", [])  # List of folders
 
-            image_files = sorted(os.listdir(user_image_directory))
-            image_urls = [url_for('serve_image', username=user_data["nombre_usuario"], filename=img) for img in image_files]
+            if not base_path or not os.path.exists(base_path):
+                return f"No base path found or accessible for user '{account['nmusuario']}'", 404
+
+            # Fetch images only directly within the base path
+            image_files = sorted(
+                [
+                    file for file in os.listdir(base_path)
+                    if os.path.isfile(os.path.join(base_path, file)) and file.lower().endswith(('jpg', 'jpeg', 'png', 'gif'))
+                ]
+            )
+            image_urls = [
+                url_for('serve_image', username=account["nmusuario"], filename=img) for img in image_files
+            ]
 
             return render_template(
                 "image_clas.html",
-                nombre_usuario=user_data["nombre_usuario"],
-                atri_clas=user_data["atributo_clasificando"],
-                ganancias_din=user_data["ganancias_mxn"],
-                images=image_urls
+                nombre_usuario=account["nmusuario"],
+                atri_clas=account["atributo_clasificando"],
+                num_imagenes_clasificadas=account["num_imagenes_clasificadas"],
+                images=image_urls,
+                folders=folders  # Pass folders to template
             )
         else:
             return render_template('index.html', mensaje="Usuario O Contraseña Incorrectas")
     return render_template('index.html')
 
 
-@app.route('/image-classifier')
-def image_classifier():
-    """
-    Render the image classifier page for the logged-in user.
-    """
-    if not session.get('logueado'):
-        return render_template('index.html', mensaje="Por favor, inicie sesión.")
-
-    username = session.get('username')
-
-    # Fetch user-specific data from the database
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM usuarios WHERE nmusuario = %s", (username,))
-    account = cur.fetchone()
-    cur.close()
-
-    if not account:
-        return f"No user data found for '{username}'", 404
-
-    # Construct the user-specific image directory
-    user_image_directory = app.config['USER_IMAGE_DIRECTORIES'].get(username)
-    if not user_image_directory or not os.path.exists(user_image_directory):
-        return f"No images found for user '{username}'", 404
-
-    # Fetch images for the user
-    image_files = sorted(os.listdir(user_image_directory))
-    image_urls = [url_for('serve_image', username=username, filename=img) for img in image_files]
-
-    return render_template(
-        'image_clas.html',
-        images=image_urls,
-        nombre_usuario=account['nmusuario'],
-        atri_clas=account['atributo_clasificando'],
-        ganancias_din=account['ganancias_mxn']
-    )
-
 
 @app.route('/images/<username>/<filename>')
 def serve_image(username, filename):
     """
-    Serve an image from the user-specific directory.
+    Serve an image from the user's base directory.
     """
-    user_image_directory = app.config['USER_IMAGE_DIRECTORIES'].get(username)
+    user_config = app.config['USER_DIRECTORY_CONFIG'].get(username)
 
-    if not user_image_directory or not os.path.exists(user_image_directory):
-        return f"No directory found for user '{username}'", 404
+    if not user_config:
+        return f"No folder configuration found for user '{username}'", 404
 
-    return send_from_directory(user_image_directory, filename)
+    base_path = user_config.get("base_path")
+    if not base_path or not os.path.exists(base_path):
+        return f"No base path found or accessible for user '{username}'", 404
 
+    return send_from_directory(base_path, filename)
 
-@app.route('/save-position', methods=['POST'])
-def save_position():
+@app.route('/move-image', methods=['POST'])
+def move_image():
     """
-    Save the user's current position (index) in the database.
+    Move the current image to the selected folder.
     """
-    if not session.get('logueado'):
-        return jsonify({"error": "User not logged in"}), 401
+    data = request.json
+    image = data.get('image')
+    folder = data.get('folder')
 
-    user_id = session['id']
-    current_index = request.json.get('currentIndex', 0)
+    if not image or not folder:
+        return jsonify({'error': 'Invalid data provided'}), 400
 
-    cur = mysql.connection.cursor()
-    cur.execute("UPDATE usuarios SET current_index = %s WHERE usuarioid = %s", (current_index, user_id))
-    mysql.connection.commit()
-    cur.close()
+    # Debugging Logs
+    print(f"Request to move image: {image} to folder: {folder}")
 
-    return jsonify({"message": "Position saved successfully", "currentIndex": current_index})
+    user_config = app.config['USER_DIRECTORY_CONFIG'].get(session['username'])
+    if not user_config:
+        return jsonify({'error': 'User configuration not found'}), 404
 
-@app.route('/get-position', methods=['GET'])
-def get_position():
-    """
-    Get the user's last saved position (index) from the database.
-    """
-    if not session.get('logueado'):
-        return jsonify({"error": "User not logged in"}), 401
+    base_path = user_config['base_path']
+    folder_path = os.path.join(base_path, folder)
 
-    user_id = session['id']
+    # Validate paths
+    source_path = os.path.join(base_path, image)
+    destination_path = os.path.join(folder_path, image)
 
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT current_index FROM usuarios WHERE usuarioid = %s", (user_id,))
-    current_index = cur.fetchone()
-    cur.close()
+    print(f"Source Path: {source_path}")
+    print(f"Destination Path: {destination_path}")
 
-    return jsonify({"currentIndex": current_index['current_index']})
+    if not os.path.exists(source_path):
+        return jsonify({'error': f"Image '{image}' not found at {source_path}"}), 404
+
+    # Ensure folder exists
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
+    try:
+        shutil.move(source_path, destination_path)
+        print(f"Image '{image}' moved successfully!")
+        return jsonify({'message': f"Image '{image}' moved to folder '{folder}'"}), 200
+    except Exception as e:
+        print(f"Error moving image: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.secret_key = app.config.get('SECRET_KEY', 'default_secret_key')  # Ensure a secure key

@@ -11,13 +11,43 @@
             background-color: #f8f9fa;
             padding: 20px;
         }
+
         .image-display {
             text-align: center;
             margin-top: 50px;
+            margin-bottom: 20px;
         }
+
         .image-display img {
             max-width: 100%;
             max-height: 400px;
+        }
+
+        /* Folder Buttons Container */
+        .folder-buttons {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .folder-btn {
+            background-color: #6c757d; /* Simple gray */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .folder-btn:hover {
+            background-color: #5a6268; /* Slightly darker gray on hover */
+        }
+
+        .folder-btn.active {
+            background-color: #007bff; /* Blue for the active folder */
+            color: white;
+            border: 2px solid #0056b3;
         }
     </style>
 </head>
@@ -25,15 +55,22 @@
     <!-- Top Bar -->
     <div class="top-bar d-flex justify-content-between">
         <div><strong>Atributo Clasificando:</strong> {{ atri_clas }}</div>
-        <div><strong>Ganancias:</strong> ${{ ganancias_din }}</div>
+        <div><strong>Número de imágenes clasificadas:</strong> {{ num_imagenes_clasificadas }}</div>
         <div><strong>Usuario:</strong> {{ nombre_usuario }}</div>
     </div>
 
     <!-- Image Display -->
     <div class="image-display">
-        <button id="backward" class="btn btn-secondary me-2">Backward</button>
+        <button id="backward" class="btn btn-secondary me-2">Anterior</button>
         <img id="image" src="{{ images[0] }}" alt="Classifying Image">
-        <button id="forward" class="btn btn-secondary ms-2">Forward</button>
+        <button id="forward" class="btn btn-secondary ms-2">Siguiente</button>
+    </div>
+
+    <!-- Folder Buttons -->
+    <div class="folder-buttons">
+        {% for folder in folders %}
+            <button class="folder-btn" data-folder="{{ folder }}">{{ folder }}</button>
+        {% endfor %}
     </div>
 
     <!-- Script -->
@@ -42,17 +79,83 @@
         let currentIndex = 0;
 
         const imageElement = document.getElementById('image');
+        const folderButtons = document.querySelectorAll('.folder-btn');
+        let selectedFolder = null; // Track the currently selected folder
 
-        // Navigation Functions
-        document.getElementById('forward').addEventListener('click', () => {
-            currentIndex = (currentIndex + 1) % images.length;
-            imageElement.src = images[currentIndex];
+        // Function to extract the filename from a full path
+        const getFilename = (imagePath) => {
+            return imagePath.split('/').pop();
+        };
+
+        // Function to move the current image
+        const moveImage = () => {
+            if (selectedFolder) {
+                const fullImagePath = images[currentIndex];
+                const currentImage = getFilename(fullImagePath); // Extract just the filename
+
+                console.log("Moving Image:", currentImage, "to Folder:", selectedFolder);
+
+                // Send a request to the backend to move the image
+                fetch('/move-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: currentImage,
+                        folder: selectedFolder,
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data.message);
+
+                    // Remove the image from the current list and reset buttons
+                    images.splice(currentIndex, 1);
+                    folderButtons.forEach(btn => btn.classList.remove('active'));
+                    selectedFolder = null;
+
+                    // Load the next image if available
+                    if (images.length > 0) {
+                        currentIndex = currentIndex % images.length;
+                        imageElement.src = images[currentIndex];
+                    } else {
+                        imageElement.src = '';
+                        alert('No more images to classify.');
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            } else {
+                alert('Please select a folder before moving to the next image.');
+            }
+        };
+
+        // Function to move forward
+        const moveForward = () => {
+            moveImage();
+        };
+
+        // Function to move backward
+        const moveBackward = () => {
+            moveImage();
+        };
+
+        // Add click events to buttons
+        document.getElementById('forward').addEventListener('click', moveForward);
+        document.getElementById('backward').addEventListener('click', moveBackward);
+
+        // Folder Button Functionality
+        folderButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                // Allow only one active folder
+                folderButtons.forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+
+                // Set the selected folder
+                selectedFolder = e.target.getAttribute('data-folder');
+            });
         });
 
-        document.getElementById('backward').addEventListener('click', () => {
-            currentIndex = (currentIndex - 1 + images.length) % images.length;
-            imageElement.src = images[currentIndex];
-        });
     </script>
 </body>
 </html>
