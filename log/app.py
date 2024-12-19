@@ -91,7 +91,7 @@ def serve_image(username, filename):
 @app.route('/move-image', methods=['POST'])
 def move_image():
     """
-    Move the current image to the selected folder.
+    Move the current image to the selected folder and update the classification count.
     """
     data = request.json
     image = data.get('image')
@@ -125,12 +125,24 @@ def move_image():
         os.makedirs(folder_path)
 
     try:
+        # Move the image
         shutil.move(source_path, destination_path)
         print(f"Image '{image}' moved successfully!")
+
+        # Update the user's classified image count in the database
+        cur = mysql.connection.cursor()
+        cur.execute(
+            'UPDATE usuarios SET num_imagenes_clasificadas = num_imagenes_clasificadas + 1 WHERE usuarioid = %s',
+            (session['id'],)
+        )
+        mysql.connection.commit()
+        cur.close()
+
         return jsonify({'message': f"Image '{image}' moved to folder '{folder}'"}), 200
     except Exception as e:
         print(f"Error moving image: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 
 if __name__ == '__main__':

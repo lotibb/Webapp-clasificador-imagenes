@@ -20,13 +20,13 @@ class Config:
             "base_path": r"D:\IG\calderitas\01_calderitas\03_imagenes_frentes_predios\imagenes_prueba_para_vizualizador_imagenes",
             "folders": ["Comercial", "No comercial"]
         },
-        "user2": {
-            "base_path": os.path.join(BASE_IMAGE_DIRECTORY, "user2"),
-            "folders": ["work", "backup"]
+        "antonio": {
+            "base_path": r"D:\IG\calderitas\01_calderitas\03_imagenes_frentes_predios\imagenes_prubea_para_vizualizador_imagenes_2",
+            "folders": ["Baldio", "No baldio", "Otro"]
         },
-        "user3": {
-            "base_path": os.path.join(BASE_IMAGE_DIRECTORY, "user3"),
-            "folders": ["temp", "processed"]
+        "erick": {
+            "base_path": r"D:\IG\calderitas\01_calderitas\03_imagenes_frentes_predios\imagenes_prubea_para_vizualizador_imagenes_3",
+            "folders": ["Si", "No"]
         }
     }
 

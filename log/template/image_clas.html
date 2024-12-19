@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clasificador de Imagenes</title>
+    <title>Clasificador de Imágenes</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
@@ -19,18 +19,19 @@
         }
 
         .image-display img {
-            max-width: 100%;
-            max-height: 400px;
+            width: 70vw; /* 80% of the browser's width */
+            height: auto; /* Maintain aspect ratio */
+            max-height: 80vh; /* Ensure it doesn’t exceed 80% of the viewport height */
         }
 
-        /* Folder Buttons Container */
+
         .folder-buttons {
             text-align: center;
             margin-top: 20px;
         }
 
         .folder-btn {
-            background-color: #6c757d; /* Simple gray */
+            background-color: #6c757d;
             color: white;
             border: none;
             padding: 10px 20px;
@@ -41,11 +42,11 @@
         }
 
         .folder-btn:hover {
-            background-color: #5a6268; /* Slightly darker gray on hover */
+            background-color: #5a6268;
         }
 
         .folder-btn.active {
-            background-color: #007bff; /* Blue for the active folder */
+            background-color: #007bff;
             color: white;
             border: 2px solid #0056b3;
         }
@@ -55,13 +56,15 @@
     <!-- Top Bar -->
     <div class="top-bar d-flex justify-content-between">
         <div><strong>Atributo Clasificando:</strong> {{ atri_clas }}</div>
-        <div><strong>Número de imágenes clasificadas:</strong> {{ num_imagenes_clasificadas }}</div>
+        <div>
+            <strong>Número de imágenes clasificadas:</strong>
+            <span id="num-imagenes">{{ num_imagenes_clasificadas }}</span>
+        </div>
         <div><strong>Usuario:</strong> {{ nombre_usuario }}</div>
     </div>
 
     <!-- Image Display -->
     <div class="image-display">
-        <button id="backward" class="btn btn-secondary me-2">Anterior</button>
         <img id="image" src="{{ images[0] }}" alt="Classifying Image">
         <button id="forward" class="btn btn-secondary ms-2">Siguiente</button>
     </div>
@@ -77,25 +80,34 @@
     <script>
         const images = JSON.parse('{{ images | tojson | safe }}');
         let currentIndex = 0;
-
         const imageElement = document.getElementById('image');
         const folderButtons = document.querySelectorAll('.folder-btn');
-        let selectedFolder = null; // Track the currently selected folder
+        let selectedFolder = null;
 
-        // Function to extract the filename from a full path
+        // Function to get the filename from a path
         const getFilename = (imagePath) => {
             return imagePath.split('/').pop();
+        };
+
+        // Function to reset folder buttons
+        const resetFolderButtons = () => {
+            folderButtons.forEach(btn => btn.classList.remove('active'));
+            selectedFolder = null; // Reset selected folder
+        };
+
+        // Function to update the classified count
+        const updateClassifiedCount = () => {
+            const countElement = document.getElementById('num-imagenes');
+            const currentCount = parseInt(countElement.textContent, 10);
+            countElement.textContent = currentCount + 1; // Increment count
         };
 
         // Function to move the current image
         const moveImage = () => {
             if (selectedFolder) {
                 const fullImagePath = images[currentIndex];
-                const currentImage = getFilename(fullImagePath); // Extract just the filename
+                const currentImage = getFilename(fullImagePath);
 
-                console.log("Moving Image:", currentImage, "to Folder:", selectedFolder);
-
-                // Send a request to the backend to move the image
                 fetch('/move-image', {
                     method: 'POST',
                     headers: {
@@ -110,12 +122,10 @@
                 .then(data => {
                     console.log(data.message);
 
-                    // Remove the image from the current list and reset buttons
                     images.splice(currentIndex, 1);
-                    folderButtons.forEach(btn => btn.classList.remove('active'));
-                    selectedFolder = null;
+                    resetFolderButtons(); // Reset buttons after moving
+                    updateClassifiedCount(); // Update classified count
 
-                    // Load the next image if available
                     if (images.length > 0) {
                         currentIndex = currentIndex % images.length;
                         imageElement.src = images[currentIndex];
@@ -130,32 +140,26 @@
             }
         };
 
-        // Function to move forward
+        // Function for forward navigation
         const moveForward = () => {
+            if (!selectedFolder) {
+                alert('Debes de seleccionar un botón antes de ir a la siguiente imágen.');
+                return;
+            }
             moveImage();
         };
 
-        // Function to move backward
-        const moveBackward = () => {
-            moveImage();
-        };
-
-        // Add click events to buttons
-        document.getElementById('forward').addEventListener('click', moveForward);
-        document.getElementById('backward').addEventListener('click', moveBackward);
-
-        // Folder Button Functionality
+        // Add event listeners to folder buttons
         folderButtons.forEach(button => {
             button.addEventListener('click', (e) => {
-                // Allow only one active folder
                 folderButtons.forEach(btn => btn.classList.remove('active'));
                 e.target.classList.add('active');
-
-                // Set the selected folder
                 selectedFolder = e.target.getAttribute('data-folder');
             });
         });
 
+        // Add event listener to the forward button
+        document.getElementById('forward').addEventListener('click', moveForward);
     </script>
 </body>
 </html>
