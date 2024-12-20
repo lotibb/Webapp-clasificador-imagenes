@@ -3,163 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clasificador de Imágenes</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Image Viewer</title>
     <style>
-        .top-bar {
-            background-color: #f8f9fa;
-            padding: 20px;
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
         }
 
         .image-display {
             text-align: center;
-            margin-top: 50px;
-            margin-bottom: 20px;
         }
 
         .image-display img {
-            width: 70vw; /* 80% of the browser's width */
+            width: 70vw; /* 70% of the browser's width */
             height: auto; /* Maintain aspect ratio */
             max-height: 80vh; /* Ensure it doesn’t exceed 80% of the viewport height */
         }
 
-
-        .folder-buttons {
-            text-align: center;
+        .controls {
             margin-top: 20px;
         }
 
-        .folder-btn {
-            background-color: #6c757d;
-            color: white;
-            border: none;
+        .controls button {
             padding: 10px 20px;
-            margin: 5px;
-            font-size: 1rem;
-            border-radius: 5px;
+            font-size: 16px;
             cursor: pointer;
-        }
-
-        .folder-btn:hover {
-            background-color: #5a6268;
-        }
-
-        .folder-btn.active {
-            background-color: #007bff;
-            color: white;
-            border: 2px solid #0056b3;
         }
     </style>
 </head>
 <body>
-    <!-- Top Bar -->
-    <div class="top-bar d-flex justify-content-between">
-        <div><strong>Atributo Clasificando:</strong> {{ atri_clas }}</div>
-        <div>
-            <strong>Número de imágenes clasificadas:</strong>
-            <span id="num-imagenes">{{ num_imagenes_clasificadas }}</span>
-        </div>
-        <div><strong>Usuario:</strong> {{ nombre_usuario }}</div>
-    </div>
-
-    <!-- Image Display -->
     <div class="image-display">
-        <img id="image" src="{{ images[0] }}" alt="Classifying Image">
-        <button id="forward" class="btn btn-secondary ms-2">Siguiente</button>
+        <img id="current-image" src="" alt="Image Viewer">
+    </div>
+    <div class="controls">
+        <button onclick="previousImage()">Previous</button>
+        <button onclick="nextImage()">Next</button>
     </div>
 
-    <!-- Folder Buttons -->
-    <div class="folder-buttons">
-        {% for folder in folders %}
-            <button class="folder-btn" data-folder="{{ folder }}">{{ folder }}</button>
-        {% endfor %}
-    </div>
-
-    <!-- Script -->
     <script>
-        const images = JSON.parse('{{ images | tojson | safe }}');
-        let currentIndex = 0;
-        const imageElement = document.getElementById('image');
-        const folderButtons = document.querySelectorAll('.folder-btn');
-        let selectedFolder = null;
+        let currentIndex = null;
 
-        // Function to get the filename from a path
-        const getFilename = (imagePath) => {
-            return imagePath.split('/').pop();
-        };
+        async function loadImage() {
+            const response = await fetch('/get-image');
+            const data = await response.json();
 
-        // Function to reset folder buttons
-        const resetFolderButtons = () => {
-            folderButtons.forEach(btn => btn.classList.remove('active'));
-            selectedFolder = null; // Reset selected folder
-        };
-
-        // Function to update the classified count
-        const updateClassifiedCount = () => {
-            const countElement = document.getElementById('num-imagenes');
-            const currentCount = parseInt(countElement.textContent, 10);
-            countElement.textContent = currentCount + 1; // Increment count
-        };
-
-        // Function to move the current image
-        const moveImage = () => {
-            if (selectedFolder) {
-                const fullImagePath = images[currentIndex];
-                const currentImage = getFilename(fullImagePath);
-
-                fetch('/move-image', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        image: currentImage,
-                        folder: selectedFolder,
-                    }),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data.message);
-
-                    images.splice(currentIndex, 1);
-                    resetFolderButtons(); // Reset buttons after moving
-                    updateClassifiedCount(); // Update classified count
-
-                    if (images.length > 0) {
-                        currentIndex = currentIndex % images.length;
-                        imageElement.src = images[currentIndex];
-                    } else {
-                        imageElement.src = '';
-                        alert('No more images to classify.');
-                    }
-                })
-                .catch(error => console.error('Error:', error));
+            if (data.error) {
+                alert(`Error: ${data.error}`);
             } else {
-                alert('Please select a folder before moving to the next image.');
+                const imgElement = document.getElementById('current-image');
+                imgElement.src = data.image_url;
+                currentIndex = data.id_imagen;
             }
-        };
+        }
 
-        // Function for forward navigation
-        const moveForward = () => {
-            if (!selectedFolder) {
-                alert('Debes de seleccionar un botón antes de ir a la siguiente imágen.');
-                return;
-            }
-            moveImage();
-        };
-
-        // Add event listeners to folder buttons
-        folderButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                folderButtons.forEach(btn => btn.classList.remove('active'));
-                e.target.classList.add('active');
-                selectedFolder = e.target.getAttribute('data-folder');
+        async function updateIndex(action) {
+            const response = await fetch('/update-index', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
             });
-        });
 
-        // Add event listener to the forward button
-        document.getElementById('forward').addEventListener('click', moveForward);
+            const data = await response.json();
+
+            if (data.success) {
+                loadImage();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        }
+
+        function nextImage() {
+            updateIndex('next');
+        }
+
+        function previousImage() {
+            updateIndex('previous');
+        }
+
+        // Load initial image on page load
+        loadImage();
+
     </script>
 </body>
 </html>
