@@ -67,11 +67,6 @@ def initialize_user_columns():
         cursor.close()
         connection.close()
 
-
-
-
-
-
 # Initialize columns when the app starts
 initialize_user_columns()
 
