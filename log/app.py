@@ -1,19 +1,79 @@
+import pymysql
 from flask import Flask, render_template, jsonify, request, redirect, session
 from flask_mysqldb import MySQL
-import os
+from configuration_file import DevelopmentConfig  # Import your config class
 
 app = Flask(__name__, template_folder='template')
 
-# Configure app
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'aMerica8dic&?'
-app.config['MYSQL_DB'] = 'webapp_image_viewer'
-app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
-app.secret_key = os.environ.get('SECRET_KEY', 'pinchellave')
+# Load configuration from config.py
+app.config.from_object(DevelopmentConfig)
 
 # Initialize MySQL
 mysql = MySQL(app)
+
+def initialize_user_columns():
+    """
+    Dynamically creates a column in the 'solidaridad_imagenes' table for each user 
+    based on the value of 'atributo_clasificando' in the 'usuarios' table.
+    The column will be of type VARCHAR(15) and allow NULL values.
+    """
+    db_config = {
+        "host": DevelopmentConfig.MYSQL_HOST,
+        "user": DevelopmentConfig.MYSQL_USER,
+        "password": DevelopmentConfig.MYSQL_PASSWORD,
+        "database": DevelopmentConfig.MYSQL_DB,
+        "cursorclass": pymysql.cursors.DictCursor  # Use DictCursor to fetch rows as dictionaries
+    }
+
+    # Establish database connection
+    connection = pymysql.connect(**db_config)
+    cursor = connection.cursor()
+
+    try:
+        # Fetch users' data including 'atributo_clasificando' and the table name
+        cursor.execute("SELECT nmusuario, atributo_clasificando, pull_table_images_name FROM usuarios")
+        users = cursor.fetchall()
+
+        for user in users:
+            username = user['nmusuario']
+            atributo = user['atributo_clasificando']
+            table_name = user['pull_table_images_name']
+
+            if atributo:
+                sanitized_column = atributo.replace(" ", "_")
+
+                # Check if the column already exists
+                check_column_sql = f"""
+                SELECT COUNT(*) 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = '{DevelopmentConfig.MYSQL_DB}' 
+                AND TABLE_NAME = '{table_name}' 
+                AND COLUMN_NAME = '{sanitized_column}';
+                """
+                cursor.execute(check_column_sql)
+                column_exists = cursor.fetchone()['COUNT(*)']
+
+                # Add the column if it does not exist
+                if column_exists == 0:
+                    sql = f"ALTER TABLE `{table_name}` ADD COLUMN `{sanitized_column}` VARCHAR(15) NULL;"
+                    cursor.execute(sql)
+                    print(f"Added column '{sanitized_column}' to table '{table_name}' for user '{username}'.")
+
+        connection.commit()
+        print("All columns initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing columns: {e}")
+    finally:
+        cursor.close()
+        connection.close()
+
+
+
+
+
+
+# Initialize columns when the app starts
+initialize_user_columns()
 
 @app.route('/')
 def home():
@@ -36,9 +96,19 @@ def login():
             session['indice'] = account['indice']
             session['pull_table_images_name'] = account['pull_table_images_name']
 
-            return render_template("image_classification.html")
+            # Fetch additional attributes
+            atri_clas = account['atributo_clasificando']
+            nombre_usuario = account['nmusuario']
+
+            # Get classification options for the user
+            classification_options = DevelopmentConfig.USER_CLASSIFICATIONS.get(nombre_usuario, {}).get("classification_options", [])
+
+            return render_template("image_classification.html", 
+                                   atri_clas=atri_clas, 
+                                   nombre_usuario=nombre_usuario, 
+                                   classification_options=classification_options)
         else:
-            return render_template('index.html', mensaje="Usuario O Contraseña Incorrectas")
+            return render_template('index.html', mensaje="Usuario o Contraseña Incorrectas")
 
 @app.route('/get-image', methods=['GET'])
 def get_image():
@@ -82,7 +152,7 @@ def update_index():
         else:
             cur.execute(f"SELECT MAX(id_imagen) FROM {pull_table_images_name} WHERE id_imagen < %s", (current_indice,))
 
-        new_indice = cur.fetchone()["MIN(id_imagen)"] if action == 'next' else cur.fetchone()["MAX(id_imagen)"]
+        new_indice = cur.fetchone()["MIN(id_imagen)" if action == 'next' else "MAX(id_imagen)"]
 
         if new_indice:
             session['indice'] = new_indice

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clasificador de Imágenes</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .top-bar {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+
+        .image-display {
+            text-align: center;
+            margin-top: 50px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-display img {
+            width: 70vw; /* 80% of the browser's width */
+            height: auto; /* Maintain aspect ratio */
+            max-height: 80vh; /* Ensure it doesn’t exceed 80% of the viewport height */
+        }
+
+        .control-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 20px;
+        }
+
+        .control-btn:hover {
+            background-color: #5a6268;
+        }
+
+        .classification-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .classification-btn:hover {
+            background-color: #5a6268;
+        }
+
+        .classification-btn.active {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar d-flex justify-content-between">
+        <div><strong>Atributo Clasificando:</strong> {{ atri_clas }}</div>
+        <div>
+            <strong>Número de imágenes clasificadas:</strong>
+            <span id="num-imagenes">{{ num_imagenes_clasificadas }}</span>
+        </div>
+        <div><strong>Usuario:</strong> {{ nombre_usuario }}</div>
+    </div>
+
+    <!-- Image Display with Side Buttons -->
+    <div class="image-display">
+        <button class="control-btn" onclick="previousImage()">Anterior</button>
+        <img id="current-image" src="" alt="Image Viewer">
+        <button class="control-btn" onclick="nextImage()">Siguiente</button>
+    </div>
+
+    <!-- Buttons for Classification -->
+    <div class="classification-buttons text-center mt-3">
+        {% for option in classification_options %}
+            <button class="classification-btn" onclick="selectClassification(this)">{{ option }}</button>
+        {% endfor %}
+    </div>
+
+    <script>
+        let currentIndex = null;
+
+        async function loadImage() {
+            const response = await fetch('/get-image');
+            const data = await response.json();
+
+            if (data.error) {
+                alert(`Error: ${data.error}`);
+            } else {
+                const imgElement = document.getElementById('current-image');
+                imgElement.src = data.image_url;
+                currentIndex = data.id_imagen;
+            }
+        }
+
+        async function updateIndex(action) {
+            const response = await fetch('/update-index', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                loadImage();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        }
+
+        function nextImage() {
+            updateIndex('next');
+        }
+
+        function previousImage() {
+            updateIndex('previous');
+        }
+
+        function selectClassification(button) {
+            // Remove active class from all buttons
+            const buttons = document.querySelectorAll('.classification-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            // Add active class to the clicked button
+            button.classList.add('active');
+        }
+
+        // Load initial image on page load
+        loadImage();
+
+    </script>
+</body>
+</html>
