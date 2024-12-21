@@ -130,6 +130,7 @@ def get_image():
 @app.route('/update-index', methods=['POST'])
 def update_index():
     action = request.json.get('action')
+    classification_value = request.json.get('classification')  # Get classification value from request
 
     if action not in ['next', 'previous']:
         return jsonify({"error": "Invalid action"}), 400
@@ -137,11 +138,25 @@ def update_index():
     try:
         cur = mysql.connection.cursor()
 
-        # Get current indice
+        # Get current session data
         current_indice = session.get('indice')
+        user_id = session.get('id')
         pull_table_images_name = session.get('pull_table_images_name')
 
-        # Update the indice
+        # Fetch 'atributo_clasificando' and other user-specific details
+        cur.execute("SELECT atributo_clasificando FROM usuarios WHERE usuarioid = %s", (user_id,))
+        user_data = cur.fetchone()
+        atributo_clasificando = user_data['atributo_clasificando']
+
+        # Update the classification of the current image
+        if classification_value and pull_table_images_name and atributo_clasificando:
+            sanitized_column = atributo_clasificando.replace(" ", "_")
+            cur.execute(
+                f"UPDATE `{pull_table_images_name}` SET `{sanitized_column}` = %s WHERE id_imagen = %s",
+                (classification_value, current_indice)
+            )
+
+        # Update the image index
         if action == 'next':
             cur.execute(f"SELECT MIN(id_imagen) FROM {pull_table_images_name} WHERE id_imagen > %s", (current_indice,))
         else:
@@ -151,7 +166,7 @@ def update_index():
 
         if new_indice:
             session['indice'] = new_indice
-            cur.execute("UPDATE usuarios SET indice = %s WHERE usuarioid = %s", (new_indice, session['id']))
+            cur.execute("UPDATE usuarios SET indice = %s WHERE usuarioid = %s", (new_indice, user_id))
             mysql.connection.commit()
 
         cur.close()
