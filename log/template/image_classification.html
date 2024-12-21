@@ -85,6 +85,9 @@
     </div>
 
     <script>
+        const keyMappings = ['a', 's', 'd', 'f', 'g', 'h'];
+        let lastClassification = null;
+
         async function loadImage() {
             const response = await fetch('/get-image');
             const data = await response.json();
@@ -94,10 +97,17 @@
             } else {
                 const imgElement = document.getElementById('current-image');
                 imgElement.src = data.image_url;
+                resetButtons();
+                lastClassification = null;
             }
         }
 
         async function updateIndex(action, classification = null) {
+            if (action === 'next' && !classification) {
+                alert('Debe clasificar antes de avanzar.');
+                return;
+            }
+
             const response = await fetch('/update-index', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -114,7 +124,7 @@
         }
 
         function nextImage() {
-            updateIndex('next');
+            updateIndex('next', lastClassification);
         }
 
         function previousImage() {
@@ -128,17 +138,28 @@
             buttons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
 
-            // Send classification data and navigate to the next image
+            lastClassification = classificationValue;
             updateIndex('next', classificationValue);
         }
 
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'ArrowRight') {
+            if (keyMappings.includes(event.key)) {
+                const index = keyMappings.indexOf(event.key);
+                const buttons = document.querySelectorAll('.classification-btn');
+                if (index >= 0 && index < buttons.length) {
+                    buttons[index].click(); // Trigger classification button
+                }
+            } else if (event.key === 'ArrowRight') {
                 nextImage();
             } else if (event.key === 'ArrowLeft') {
                 previousImage();
             }
         });
+
+        function resetButtons() {
+            const buttons = document.querySelectorAll('.classification-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+        }
 
         loadImage();
     </script>
