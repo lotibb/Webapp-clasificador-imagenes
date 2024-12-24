@@ -12,7 +12,7 @@ class Config:
     # User classification options
     USER_CLASSIFICATIONS = {
         "lotibb": {
-            "classification_options": ["si", "no","Otro"],
+            "classification_options": ["Si", "No"],
         },
         "antonio": {
             "classification_options": ["si", "no"],

@@ -94,14 +94,18 @@ def login():
             # Fetch additional attributes
             atri_clas = account['atributo_clasificando']
             nombre_usuario = account['nmusuario']
+            num_imagenes_clasificadas = account['num_imagenes_clasificadas']  # Fetch the number of images classified
 
             # Get classification options for the user
             classification_options = DevelopmentConfig.USER_CLASSIFICATIONS.get(nombre_usuario, {}).get("classification_options", [])
 
-            return render_template("image_classification.html", 
-                                   atri_clas=atri_clas, 
-                                   nombre_usuario=nombre_usuario, 
-                                   classification_options=classification_options)
+            return render_template(
+                "image_classification.html", 
+                atri_clas=atri_clas, 
+                nombre_usuario=nombre_usuario, 
+                classification_options=classification_options, 
+                num_imagenes_clasificadas=num_imagenes_clasificadas  # Pass the value to the template
+            )
         else:
             return render_template('index.html', mensaje="Usuario o Contraseña Incorrectas")
 
@@ -144,33 +148,56 @@ def update_index():
         pull_table_images_name = session.get('pull_table_images_name')
 
         # Fetch 'atributo_clasificando' and other user-specific details
-        cur.execute("SELECT atributo_clasificando FROM usuarios WHERE usuarioid = %s", (user_id,))
+        cur.execute("SELECT atributo_clasificando, num_imagenes_clasificadas FROM usuarios WHERE usuarioid = %s", (user_id,))
         user_data = cur.fetchone()
         atributo_clasificando = user_data['atributo_clasificando']
+        num_imagenes_clasificadas = user_data['num_imagenes_clasificadas']
 
-        # Update the classification of the current image
-        if classification_value and pull_table_images_name and atributo_clasificando:
-            sanitized_column = atributo_clasificando.replace(" ", "_")
-            cur.execute(
-                f"UPDATE `{pull_table_images_name}` SET `{sanitized_column}` = %s WHERE id_imagen = %s",
-                (classification_value, current_indice)
-            )
-
-        # Update the image index
         if action == 'next':
+            # Check if the image is already classified before proceeding
+            if classification_value and pull_table_images_name and atributo_clasificando:
+                sanitized_column = atributo_clasificando.replace(" ", "_")
+
+                # Check if the current image is unclassified
+                cur.execute(
+                    f"SELECT `{sanitized_column}` FROM `{pull_table_images_name}` WHERE id_imagen = %s",
+                    (current_indice,)
+                )
+                current_classification = cur.fetchone()[sanitized_column]
+
+                # Update the classification only if it's currently unclassified
+                if not current_classification:
+                    cur.execute(
+                        f"UPDATE `{pull_table_images_name}` SET `{sanitized_column}` = %s WHERE id_imagen = %s",
+                        (classification_value, current_indice)
+                    )
+
+                    # Increment the user's classified images count
+                    cur.execute(
+                        "UPDATE usuarios SET num_imagenes_clasificadas = num_imagenes_clasificadas + 1 WHERE usuarioid = %s",
+                        (user_id,)
+                    )
+                    num_imagenes_clasificadas += 1
+
+            # Get the next image index
             cur.execute(f"SELECT MIN(id_imagen) FROM {pull_table_images_name} WHERE id_imagen > %s", (current_indice,))
-        else:
+            new_indice = cur.fetchone()["MIN(id_imagen)"]
+
+        elif action == 'previous':
+            # Get the previous image index
             cur.execute(f"SELECT MAX(id_imagen) FROM {pull_table_images_name} WHERE id_imagen < %s", (current_indice,))
+            new_indice = cur.fetchone()["MAX(id_imagen)"]
 
-        new_indice = cur.fetchone()["MIN(id_imagen)" if action == 'next' else "MAX(id_imagen)"]
-
+        # Update the session and database with the new index
         if new_indice:
             session['indice'] = new_indice
             cur.execute("UPDATE usuarios SET indice = %s WHERE usuarioid = %s", (new_indice, user_id))
             mysql.connection.commit()
 
         cur.close()
-        return jsonify({"success": True, "indice": new_indice})
+
+        # Return the updated count along with success
+        return jsonify({"success": True, "indice": new_indice, "num_imagenes_clasificadas": num_imagenes_clasificadas})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

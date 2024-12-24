@@ -108,18 +108,29 @@
                 return;
             }
 
-            const response = await fetch('/update-index', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, classification })
-            });
+            try {
+                const response = await fetch('/update-index', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, classification })
+                });
 
-            const data = await response.json();
+                const data = await response.json();
 
-            if (data.success) {
-                loadImage();
-            } else {
-                alert(`Error: ${data.error}`);
+                if (data.success) {
+                    // Update the classified count in the UI
+                    if (data.num_imagenes_clasificadas !== undefined) {
+                        document.getElementById('num-imagenes').textContent = data.num_imagenes_clasificadas;
+                    }
+
+                    // Load the next or previous image
+                    loadImage();
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Error updating index:', error);
+                alert('An error occurred while updating the index.');
             }
         }
 
