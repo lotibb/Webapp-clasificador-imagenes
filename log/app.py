@@ -95,6 +95,7 @@ def login():
             atri_clas = account['atributo_clasificando']
             nombre_usuario = account['nmusuario']
             num_imagenes_clasificadas = account['num_imagenes_clasificadas']  # Fetch the number of images classified
+            pull_table_images_name = account['pull_table_images_name']
 
             # Get classification options for the user
             classification_options = DevelopmentConfig.USER_CLASSIFICATIONS.get(nombre_usuario, {}).get("classification_options", [])
@@ -104,7 +105,8 @@ def login():
                 atri_clas=atri_clas, 
                 nombre_usuario=nombre_usuario, 
                 classification_options=classification_options, 
-                num_imagenes_clasificadas=num_imagenes_clasificadas  # Pass the value to the template
+                num_imagenes_clasificadas=num_imagenes_clasificadas,  # Pass the value to the template
+                images_table = pull_table_images_name
             )
         else:
             return render_template('index.html', mensaje="Usuario o Contraseña Incorrectas")

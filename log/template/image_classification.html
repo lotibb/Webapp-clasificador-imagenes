@@ -64,6 +64,7 @@
 </head>
 <body>
     <div class="top-bar d-flex justify-content-between">
+        <div><strong>Tabla de imagenes:</strong> {{ images_table }}</div>
         <div><strong>Atributo Clasificando:</strong> {{ atri_clas }}</div>
         <div>
             <strong>Número de imágenes clasificadas:</strong>
@@ -85,7 +86,8 @@
     </div>
 
     <script>
-        const keyMappings = ['a', 's', 'd', 'f', 'g', 'h'];
+        const keyMappings_letter = ['s', 'n', 'o'];
+        const keyMappings_number = ['1', '2', '3'];
         let lastClassification = null;
 
         async function loadImage() {
@@ -154,8 +156,14 @@
         }
 
         document.addEventListener('keydown', (event) => {
-            if (keyMappings.includes(event.key)) {
-                const index = keyMappings.indexOf(event.key);
+            if (keyMappings_letter.includes(event.key)) {
+                const index = keyMappings_letter.indexOf(event.key);
+                const buttons = document.querySelectorAll('.classification-btn');
+                if (index >= 0 && index < buttons.length) {
+                    buttons[index].click(); // Trigger classification button
+                }
+            } else if (keyMappings_number.includes(event.key)) {
+                const index = keyMappings_number.indexOf(event.key);
                 const buttons = document.querySelectorAll('.classification-btn');
                 if (index >= 0 && index < buttons.length) {
                     buttons[index].click(); // Trigger classification button
